@@ -1,0 +1,15 @@
+[Unit]
+Description=doom.c MJPEG server
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/doom
+ExecStart=/usr/local/bin/doom_server
+WorkingDirectory=/opt/doom
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

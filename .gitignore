@@ -1,0 +1,10 @@
+# binaries
+doom_server
+*.o
+
+# session artifacts
+doom_sessions/
+*.log
+
+# assets downloaded during deploy
+*.wad

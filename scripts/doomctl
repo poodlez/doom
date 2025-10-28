@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Helper for managing the doom systemd service.
+
+set -euo pipefail
+
+SERVICE="doom.service"
+
+usage() {
+  cat <<EOF
+Usage: doomctl <command>
+
+Commands:
+  status      Show systemd status
+  restart     Restart doom_server
+  stop        Stop service
+  start       Start service
+  logs        Follow journal logs
+EOF
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+  exit 1
+fi
+
+case "$1" in
+  status)
+    systemctl status "${SERVICE}"
+    ;;
+  restart)
+    systemctl restart "${SERVICE}"
+    ;;
+  stop)
+    systemctl stop "${SERVICE}"
+    ;;
+  start)
+    systemctl start "${SERVICE}"
+    ;;
+  logs)
+    journalctl -u "${SERVICE}" -f
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
