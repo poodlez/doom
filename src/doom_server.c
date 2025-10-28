@@ -50,7 +50,7 @@ static const char *session_dir = SESSION_DIR_DEFAULT;
 static const char *wad_path = WAD_PATH_DEFAULT;
 static int server_port = SERVER_PORT;
 
-static void logf(const char *fmt, ...) {
+static void doom_logf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     time_t now = time(NULL);
@@ -73,7 +73,7 @@ static void ensure_session_dir(void) {
     struct stat st = {0};
     if (stat(session_dir, &st) == -1) {
         if (mkdir(session_dir, 0777) == -1) {
-            logf("failed to create session dir %s: %s", session_dir, strerror(errno));
+            doom_logf("failed to create session dir %s: %s", session_dir, strerror(errno));
         }
     }
 }
@@ -83,7 +83,7 @@ static void session_free(struct Session *session) {
         return;
     }
 
-    logf("tearing down session %d", session->id);
+    doom_logf("tearing down session %d", session->id);
 
     if (session->doom_pid > 0) {
         kill(session->doom_pid, SIGTERM);
@@ -108,13 +108,13 @@ static void session_free(struct Session *session) {
 static int maybe_spawn_doom(struct Session *session) {
     const char *disable = getenv("DOOM_DISABLE_SPAWN");
     if (disable && disable[0] == '1') {
-        logf("DOOM_DISABLE_SPAWN=1 → skipping chocolate-doom launch for session %d", session->id);
+        doom_logf("DOOM_DISABLE_SPAWN=1 → skipping chocolate-doom launch for session %d", session->id);
         return 0;
     }
 
     pid_t child = fork();
     if (child < 0) {
-        logf("failed to fork doom process: %s", strerror(errno));
+        doom_logf("failed to fork doom process: %s", strerror(errno));
         return -1;
     }
     if (child == 0) {
@@ -132,7 +132,7 @@ static int maybe_spawn_doom(struct Session *session) {
     }
 
     session->doom_pid = child;
-    logf("spawned chocolate-doom (pid=%d) for session %d", child, session->id);
+    doom_logf("spawned chocolate-doom (pid=%d) for session %d", child, session->id);
     return 0;
 }
 
@@ -154,7 +154,7 @@ static struct Session *session_get_or_create(int session_id) {
         session->fb_buf = malloc(session->fb_buf_size);
         session->rgb_buf = malloc(FRAME_WIDTH * FRAME_HEIGHT * 3);
         if (!session->fb_buf || !session->rgb_buf) {
-            logf("memory allocation failure for session %d", session_id);
+            doom_logf("memory allocation failure for session %d", session_id);
             session_free(session);
             session = NULL;
             goto done;
@@ -164,7 +164,7 @@ static struct Session *session_get_or_create(int session_id) {
         snprintf(session->fifo_path, sizeof(session->fifo_path),
                  "%s/input_%d", session_dir, session_id);
         if (mkfifo(session->fifo_path, 0666) == -1 && errno != EEXIST) {
-            logf("mkfifo failed for %s: %s", session->fifo_path, strerror(errno));
+            doom_logf("mkfifo failed for %s: %s", session->fifo_path, strerror(errno));
             session_free(session);
             session = NULL;
             goto done;
@@ -172,7 +172,7 @@ static struct Session *session_get_or_create(int session_id) {
 
         session->fb_fd = open(framebuffer_path, O_RDONLY);
         if (session->fb_fd < 0) {
-            logf("unable to open framebuffer %s: %s (falling back to synthetic frames)",
+            doom_logf("unable to open framebuffer %s: %s (falling back to synthetic frames)",
                  framebuffer_path, strerror(errno));
         }
 
@@ -182,7 +182,7 @@ static struct Session *session_get_or_create(int session_id) {
             goto done;
         }
 
-        logf("session %d initialized", session_id);
+        doom_logf("session %d initialized", session_id);
     } else {
         session->last_activity = time(NULL);
     }
@@ -196,13 +196,13 @@ static int session_write_input(struct Session *session, const char *payload, siz
     session->last_activity = time(NULL);
     int fd = open(session->fifo_path, O_WRONLY | O_NONBLOCK);
     if (fd < 0) {
-        logf("open FIFO %s failed: %s", session->fifo_path, strerror(errno));
+        doom_logf("open FIFO %s failed: %s", session->fifo_path, strerror(errno));
         return -1;
     }
     ssize_t written = write(fd, payload, len);
     close(fd);
     if (written < 0) {
-        logf("write FIFO failed: %s", strerror(errno));
+        doom_logf("write FIFO failed: %s", strerror(errno));
         return -1;
     }
     return 0;
@@ -230,7 +230,7 @@ static bool capture_frame(struct Session *session) {
     size_t expected = session->fb_buf_size;
     ssize_t read_bytes = pread(session->fb_fd, session->fb_buf, expected, 0);
     if (read_bytes != (ssize_t)expected) {
-        logf("framebuffer read returned %zd (expected %zu) — switching to synthetic frames",
+        doom_logf("framebuffer read returned %zd (expected %zu) — switching to synthetic frames",
              read_bytes, expected);
         close(session->fb_fd);
         session->fb_fd = -1;
@@ -445,7 +445,7 @@ static void stream_mjpeg(int client_fd, struct Session *session) {
         unsigned long jpeg_size = 0;
         unsigned char *jpeg_buf = encode_rgb_to_jpeg(session, &jpeg_size);
         if (!jpeg_buf || jpeg_size == 0) {
-            logf("jpeg encoding failed for session %d", session->id);
+            doom_logf("jpeg encoding failed for session %d", session->id);
             break;
         }
 
@@ -578,7 +578,7 @@ int main(void) {
         return 1;
     }
 
-    logf("doom_server listening on port %d (framebuffer=%s)", server_port, framebuffer_path);
+    doom_logf("doom_server listening on port %d (framebuffer=%s)", server_port, framebuffer_path);
 
     while (1) {
         int client_fd = accept(server_fd, NULL, NULL);
