@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -23,7 +25,7 @@
 #define FRAME_WIDTH 320
 #define FRAME_HEIGHT 200
 #define SESSION_DIR_DEFAULT "/root/doom_sessions"
-#define FB_DEFAULT "/dev/fb0"
+#define DISPLAY_DEFAULT ":99"
 #define WAD_PATH_DEFAULT "/root/freedoom1.wad"
 #define DOOM_BIN "chocolate-doom"
 #define JPEG_QUALITY 80
@@ -34,10 +36,9 @@ struct Session {
     bool active;
     int id;
     pid_t doom_pid;
-    int fb_fd;
+    Display *display;
+    Window window;
     unsigned char *rgb_buf;
-    unsigned char *fb_buf;
-    size_t fb_buf_size;
     char fifo_path[256];
     time_t last_activity;
     uint64_t frame_id;
@@ -45,7 +46,7 @@ struct Session {
 
 static struct Session sessions[MAX_SESSIONS];
 static pthread_mutex_t sessions_lock = PTHREAD_MUTEX_INITIALIZER;
-static const char *framebuffer_path = FB_DEFAULT;
+static const char *display_name = DISPLAY_DEFAULT;
 static const char *session_dir = SESSION_DIR_DEFAULT;
 static const char *wad_path = WAD_PATH_DEFAULT;
 static int server_port = SERVER_PORT;
@@ -61,6 +62,11 @@ static void doom_logf(const char *fmt, ...) {
     fprintf(stderr, "\n");
     va_end(args);
 }
+
+static Window find_doom_window(Display *display);
+static bool refresh_session_window(struct Session *session);
+static unsigned char extract_component(unsigned long pixel, unsigned long mask);
+static int x11_error_handler(Display *display, XErrorEvent *error);
 
 static void handle_sigchld(int sig) {
     (void)sig;
@@ -90,19 +96,15 @@ static void session_free(struct Session *session) {
         waitpid(session->doom_pid, NULL, WNOHANG);
     }
 
-    if (session->fb_fd >= 0) {
-        close(session->fb_fd);
+    if (session->display) {
+        XCloseDisplay(session->display);
     }
     if (session->rgb_buf) {
         free(session->rgb_buf);
     }
-    if (session->fb_buf) {
-        free(session->fb_buf);
-    }
     unlink(session->fifo_path);
 
     memset(session, 0, sizeof(*session));
-    session->fb_fd = -1;
 }
 
 static int maybe_spawn_doom(struct Session *session) {
@@ -118,8 +120,8 @@ static int maybe_spawn_doom(struct Session *session) {
         return -1;
     }
     if (child == 0) {
-        setenv("SDL_VIDEODRIVER", "fbcon", 1);
-        setenv("SDL_FBDEV", framebuffer_path, 1);
+        setenv("DISPLAY", display_name, 1);
+        setenv("SDL_VIDEODRIVER", "x11", 1);
         execlp(DOOM_BIN, DOOM_BIN,
                "-iwad", wad_path,
                "-width", "320",
@@ -147,13 +149,10 @@ static struct Session *session_get_or_create(int session_id) {
     if (!session->active) {
         memset(session, 0, sizeof(*session));
         session->id = session_id;
-        session->fb_fd = -1;
         session->active = true;
         session->last_activity = time(NULL);
-        session->fb_buf_size = FRAME_WIDTH * FRAME_HEIGHT * 4;
-        session->fb_buf = malloc(session->fb_buf_size);
         session->rgb_buf = malloc(FRAME_WIDTH * FRAME_HEIGHT * 3);
-        if (!session->fb_buf || !session->rgb_buf) {
+        if (!session->rgb_buf) {
             doom_logf("memory allocation failure for session %d", session_id);
             session_free(session);
             session = NULL;
@@ -170,10 +169,18 @@ static struct Session *session_get_or_create(int session_id) {
             goto done;
         }
 
-        session->fb_fd = open(framebuffer_path, O_RDONLY);
-        if (session->fb_fd < 0) {
-            doom_logf("unable to open framebuffer %s: %s (falling back to synthetic frames)",
-                 framebuffer_path, strerror(errno));
+        session->display = XOpenDisplay(display_name);
+        if (!session->display) {
+            doom_logf("unable to open X11 display %s (falling back to synthetic frames)", display_name);
+        } else {
+            Window found = find_doom_window(session->display);
+            if (found != None) {
+                session->window = found;
+                doom_logf("bound session %d to window 0x%lx", session_id, (unsigned long)session->window);
+            } else {
+                session->window = DefaultRootWindow(session->display);
+                doom_logf("doom window not found on %s; using root window capture", display_name);
+            }
         }
 
         if (maybe_spawn_doom(session) != 0) {
@@ -208,6 +215,45 @@ static int session_write_input(struct Session *session, const char *payload, siz
     return 0;
 }
 
+static unsigned int mask_shift(unsigned long mask) {
+    unsigned int shift = 0;
+    if (mask == 0) {
+        return 0;
+    }
+    while ((mask & 1UL) == 0UL) {
+        mask >>= 1;
+        shift++;
+    }
+    return shift;
+}
+
+static unsigned int mask_bits(unsigned long mask) {
+    unsigned int bits = 0;
+    while (mask) {
+        bits += mask & 1UL;
+        mask >>= 1;
+    }
+    return bits;
+}
+
+static unsigned char extract_component(unsigned long pixel, unsigned long mask) {
+    if (mask == 0) {
+        return 0;
+    }
+    unsigned int shift = mask_shift(mask);
+    unsigned int bits = mask_bits(mask);
+    unsigned long value = (pixel & mask) >> shift;
+    if (bits >= 8) {
+        value >>= (bits - 8);
+        return (unsigned char)value;
+    }
+    unsigned int max_value = (1u << bits) - 1u;
+    if (max_value == 0) {
+        return 0;
+    }
+    return (unsigned char)((value * 255u) / max_value);
+}
+
 static void generate_test_pattern(struct Session *session) {
     unsigned char *rgb = session->rgb_buf;
     for (int y = 0; y < FRAME_HEIGHT; y++) {
@@ -220,37 +266,144 @@ static void generate_test_pattern(struct Session *session) {
     }
 }
 
+static bool window_is_viewable(Display *display, Window window) {
+    XWindowAttributes attrs;
+    if (!XGetWindowAttributes(display, window, &attrs)) {
+        return false;
+    }
+    if (attrs.map_state != IsViewable) {
+        return false;
+    }
+    return attrs.width == FRAME_WIDTH && attrs.height == FRAME_HEIGHT;
+}
+
+static void find_window_recursive(Display *display, Window window, Window *result) {
+    if (!display || !result || *result != None) {
+        return;
+    }
+    if (window_is_viewable(display, window)) {
+        *result = window;
+        return;
+    }
+
+    Window root_return;
+    Window parent_return;
+    Window *children = NULL;
+    unsigned int nchildren = 0;
+    if (!XQueryTree(display, window, &root_return, &parent_return, &children, &nchildren)) {
+        return;
+    }
+    for (unsigned int i = 0; i < nchildren && *result == None; ++i) {
+        find_window_recursive(display, children[i], result);
+    }
+    if (children) {
+        XFree(children);
+    }
+}
+
+static Window find_doom_window(Display *display) {
+    if (!display) {
+        return None;
+    }
+    Window result = None;
+    Window root = DefaultRootWindow(display);
+    find_window_recursive(display, root, &result);
+    return result;
+}
+
+static bool refresh_session_window(struct Session *session) {
+    if (!session->display) {
+        return false;
+    }
+    Window root = DefaultRootWindow(session->display);
+    Window current = session->window;
+
+    if (current != None && current != root) {
+        if (window_is_viewable(session->display, current)) {
+            return true;
+        }
+        doom_logf("X11 window 0x%lx for session %d is no longer viewable", (unsigned long)current, session->id);
+        current = None;
+    }
+
+    Window found = find_doom_window(session->display);
+    if (found != None) {
+        if (found != session->window) {
+            doom_logf("bound session %d to window 0x%lx", session->id, (unsigned long)found);
+        }
+        session->window = found;
+        return true;
+    }
+
+    if (session->window != root) {
+        doom_logf("doom window not available; capturing root window");
+    }
+    session->window = root;
+    return false;
+}
+
+static int x11_error_handler(Display *display, XErrorEvent *error) {
+    char description[256] = {0};
+    if (display) {
+        XGetErrorText(display, error->error_code, description, sizeof(description));
+    }
+    doom_logf("X11 error %d (request %u.%u resource=0x%lx): %s",
+              error->error_code,
+              error->request_code,
+              error->minor_code,
+              error->resourceid,
+              description[0] ? description : "unknown");
+    return 0;
+}
+
 static bool capture_frame(struct Session *session) {
-    if (session->fb_fd < 0) {
+    if (!session->display) {
         generate_test_pattern(session);
         session->frame_id++;
         return true;
     }
 
-    size_t expected = session->fb_buf_size;
-    ssize_t read_bytes = pread(session->fb_fd, session->fb_buf, expected, 0);
-    if (read_bytes != (ssize_t)expected) {
-        doom_logf("framebuffer read returned %zd (expected %zu) — switching to synthetic frames",
-             read_bytes, expected);
-        close(session->fb_fd);
-        session->fb_fd = -1;
+    refresh_session_window(session);
+    Window target = session->window;
+    if (target == None) {
+        target = DefaultRootWindow(session->display);
+    }
+
+    XImage *image = XGetImage(session->display, target, 0, 0,
+                              FRAME_WIDTH, FRAME_HEIGHT, AllPlanes, ZPixmap);
+    if (!image) {
+        doom_logf("XGetImage failed for window 0x%lx — switching to synthetic frames",
+                  (unsigned long)target);
         generate_test_pattern(session);
         session->frame_id++;
         return true;
     }
 
-    unsigned char *src = session->fb_buf;
+    if (image->bits_per_pixel < 16) {
+        doom_logf("unsupported XImage depth %d — switching to synthetic frames",
+                  image->bits_per_pixel);
+        XDestroyImage(image);
+        generate_test_pattern(session);
+        session->frame_id++;
+        return true;
+    }
+
     unsigned char *dst = session->rgb_buf;
-    for (size_t i = 0, j = 0; i < expected; i += 4, j += 3) {
-        // Framebuffer is assumed to be BGRA.
-        unsigned char b = src[i + 0];
-        unsigned char g = src[i + 1];
-        unsigned char r = src[i + 2];
-        dst[j + 0] = r;
-        dst[j + 1] = g;
-        dst[j + 2] = b;
+    unsigned long red_mask = image->red_mask;
+    unsigned long green_mask = image->green_mask;
+    unsigned long blue_mask = image->blue_mask;
+
+    for (int y = 0; y < FRAME_HEIGHT; ++y) {
+        for (int x = 0; x < FRAME_WIDTH; ++x) {
+            unsigned long pixel = XGetPixel(image, x, y);
+            size_t idx = (y * FRAME_WIDTH + x) * 3;
+            dst[idx + 0] = extract_component(pixel, red_mask);
+            dst[idx + 1] = extract_component(pixel, green_mask);
+            dst[idx + 2] = extract_component(pixel, blue_mask);
+        }
     }
 
+    XDestroyImage(image);
     session->frame_id++;
     return true;
 }
@@ -531,9 +684,17 @@ int main(void) {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, handle_sigchld);
 
-    const char *fb_override = getenv("DOOM_FRAMEBUFFER");
-    if (fb_override && fb_override[0] != '\0') {
-        framebuffer_path = fb_override;
+    if (!XInitThreads()) {
+        doom_logf("warning: XInitThreads failed; X11 calls may not be thread-safe");
+    }
+    XSetErrorHandler(x11_error_handler);
+
+    const char *display_override = getenv("DOOM_DISPLAY");
+    if (!display_override || display_override[0] == '\0') {
+        display_override = getenv("DOOM_FRAMEBUFFER");  // backward compatibility
+    }
+    if (display_override && display_override[0] != '\0') {
+        display_name = display_override;
     }
     const char *session_override = getenv("DOOM_SESSION_DIR");
     if (session_override && session_override[0] != '\0') {
@@ -578,7 +739,7 @@ int main(void) {
         return 1;
     }
 
-    doom_logf("doom_server listening on port %d (framebuffer=%s)", server_port, framebuffer_path);
+    doom_logf("doom_server listening on port %d (display=%s)", server_port, display_name);
 
     while (1) {
         int client_fd = accept(server_fd, NULL, NULL);

@@ -24,8 +24,9 @@ apt-get install -y \
   git \
   libjpeg-turbo8-dev \
   libturbojpeg0-dev \
+  libx11-dev \
   chocolate-doom \
-  fbset \
+  xvfb \
   pkg-config \
   rsync \
   wget \

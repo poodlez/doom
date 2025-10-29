@@ -17,7 +17,7 @@ cd /opt/doom-src
 
 What the script does:
 
-- Updates the OS and installs `chocolate-doom`, `libjpeg-turbo`, `fbset`, etc.
+- Updates the OS and installs `chocolate-doom`, `libjpeg-turbo`, `xvfb`, etc.
 - Copies `public/` into `/opt/doom`, downloads the FreeDoom WAD, and builds the C server.
 - Installs `doom_server` into `/usr/local/bin` and drops a systemd unit that binds to port 80.
 - Enables UFW and opens ports 80/443.
@@ -25,7 +25,7 @@ What the script does:
 You can toggle features via `/etc/default/doom`:
 
 - `DOOM_DISABLE_SPAWN=1` — run server without launching Chocolate Doom (useful for dry runs).
-- `DOOM_FRAMEBUFFER=/dev/fb0` — change framebuffer path.
+- `DOOM_DISPLAY=:99` — change the X11 display the capture process connects to.
 - `DOOM_SERVER_PORT=8080` — move HTTP to a non-privileged port (remember to update firewall rules and systemd `AmbientCapabilities` if binding <1024 as non-root).
 
 Restart after editing the environment file:
