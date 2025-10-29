@@ -1,6 +1,6 @@
 CC ?= gcc
 CFLAGS ?= -O2 -pipe -Wall -Wextra
-LDFLAGS += -ljpeg -pthread -lX11
+LDFLAGS += -ljpeg -pthread -lX11 -lXtst
 
 SRC = src/doom_server.c
 OUT = doom_server

@@ -64,14 +64,14 @@
     <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Doom stream">
     <div id="controls">
       <span></span>
-      <button data-key="w">W ↑</button>
+      <button data-key="key:w">W ↑</button>
       <span></span>
-      <button data-key="a">A ←</button>
-      <button data-key="s">S ↓</button>
-      <button data-key="d">D →</button>
-      <button data-key=" ">SPACE</button>
-      <button data-key="ctrl">CTRL</button>
-      <button data-key="esc">ESC</button>
+      <button data-key="key:a">A ←</button>
+      <button data-key="key:s">S ↓</button>
+      <button data-key="key:d">D →</button>
+      <button data-key="key:space">SPACE</button>
+      <button data-key="key:Control_L">CTRL</button>
+      <button data-key="key:Escape">ESC</button>
     </div>
   </main>
   <footer>
@@ -92,15 +92,55 @@
       }
     }
 
+    const KEY_MAP = {
+      ' ': 'space',
+      Space: 'space',
+      Spacebar: 'space',
+      ArrowUp: 'Up',
+      ArrowDown: 'Down',
+      ArrowLeft: 'Left',
+      ArrowRight: 'Right',
+      Control: 'Control_L',
+      ControlLeft: 'Control_L',
+      ControlRight: 'Control_R',
+      Escape: 'Escape',
+      Esc: 'Escape',
+      Enter: 'Return',
+      Return: 'Return',
+    };
+
+    function normalizeKey(key) {
+      if (!key) {
+        return null;
+      }
+      if (KEY_MAP[key]) {
+        return KEY_MAP[key];
+      }
+      if (key.length === 1) {
+        return key.toLowerCase();
+      }
+      return null;
+    }
+
     document.querySelectorAll('button[data-key]').forEach((btn) => {
-      btn.addEventListener('click', () => sendInput(btn.dataset.key));
+      btn.addEventListener('click', () => {
+        const payload = btn.dataset.key;
+        if (payload) {
+          sendInput(payload);
+        }
+      });
     });
 
     document.addEventListener('keydown', (event) => {
       if (event.repeat) {
         return;
       }
-      sendInput(event.key);
+      const normalized = normalizeKey(event.key);
+      if (!normalized) {
+        return;
+      }
+      event.preventDefault();
+      sendInput(`key:${normalized}`);
     });
   </script>
 </body>

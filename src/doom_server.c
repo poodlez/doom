@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -9,6 +10,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +26,6 @@
 #define MAX_SESSIONS 8
 #define FRAME_WIDTH 320
 #define FRAME_HEIGHT 200
-#define SESSION_DIR_DEFAULT "/root/doom_sessions"
 #define DISPLAY_DEFAULT ":99"
 #define WAD_PATH_DEFAULT "/root/freedoom1.wad"
 #define DOOM_BIN "chocolate-doom"
@@ -38,8 +39,8 @@ struct Session {
     pid_t doom_pid;
     Display *display;
     Window window;
+    bool xtest_available;
     unsigned char *rgb_buf;
-    char fifo_path[256];
     time_t last_activity;
     uint64_t frame_id;
 };
@@ -47,7 +48,6 @@ struct Session {
 static struct Session sessions[MAX_SESSIONS];
 static pthread_mutex_t sessions_lock = PTHREAD_MUTEX_INITIALIZER;
 static const char *display_name = DISPLAY_DEFAULT;
-static const char *session_dir = SESSION_DIR_DEFAULT;
 static const char *wad_path = WAD_PATH_DEFAULT;
 static int server_port = SERVER_PORT;
 
@@ -75,15 +75,6 @@ static void handle_sigchld(int sig) {
     }
 }
 
-static void ensure_session_dir(void) {
-    struct stat st = {0};
-    if (stat(session_dir, &st) == -1) {
-        if (mkdir(session_dir, 0777) == -1) {
-            doom_logf("failed to create session dir %s: %s", session_dir, strerror(errno));
-        }
-    }
-}
-
 static void session_free(struct Session *session) {
     if (!session->active) {
         return;
@@ -102,7 +93,6 @@ static void session_free(struct Session *session) {
     if (session->rgb_buf) {
         free(session->rgb_buf);
     }
-    unlink(session->fifo_path);
 
     memset(session, 0, sizeof(*session));
 }
@@ -159,20 +149,20 @@ static struct Session *session_get_or_create(int session_id) {
             goto done;
         }
 
-        ensure_session_dir();
-        snprintf(session->fifo_path, sizeof(session->fifo_path),
-                 "%s/input_%d", session_dir, session_id);
-        if (mkfifo(session->fifo_path, 0666) == -1 && errno != EEXIST) {
-            doom_logf("mkfifo failed for %s: %s", session->fifo_path, strerror(errno));
-            session_free(session);
-            session = NULL;
-            goto done;
-        }
-
         session->display = XOpenDisplay(display_name);
         if (!session->display) {
             doom_logf("unable to open X11 display %s (falling back to synthetic frames)", display_name);
         } else {
+            int event_base = 0;
+            int error_base = 0;
+            int major = 0;
+            int minor = 0;
+            session->xtest_available = XTestQueryExtension(
+                session->display, &event_base, &error_base, &major, &minor);
+            if (!session->xtest_available) {
+                doom_logf("warning: XTest extension not available; input will not work");
+            }
+
             Window found = find_doom_window(session->display);
             if (found != None) {
                 session->window = found;
@@ -201,17 +191,69 @@ done:
 
 static int session_write_input(struct Session *session, const char *payload, size_t len) {
     session->last_activity = time(NULL);
-    int fd = open(session->fifo_path, O_WRONLY | O_NONBLOCK);
-    if (fd < 0) {
-        doom_logf("open FIFO %s failed: %s", session->fifo_path, strerror(errno));
+
+    if (!session->display || !session->xtest_available) {
         return -1;
     }
-    ssize_t written = write(fd, payload, len);
-    close(fd);
-    if (written < 0) {
-        doom_logf("write FIFO failed: %s", strerror(errno));
+    if (!payload || len == 0) {
         return -1;
     }
+
+    size_t start = 0;
+    size_t end = len;
+    while (start < end && isspace((unsigned char)payload[start])) {
+        start++;
+    }
+    while (end > start && isspace((unsigned char)payload[end - 1])) {
+        end--;
+    }
+    if (end <= start) {
+        return -1;
+    }
+
+    if (end - start >= 4 && strncmp(payload + start, "key:", 4) == 0) {
+        start += 4;
+        while (start < end && isspace((unsigned char)payload[start])) {
+            start++;
+        }
+    }
+    if (end <= start) {
+        return -1;
+    }
+
+    size_t key_len = end - start;
+    if (key_len >= 64) {
+        key_len = 63;
+    }
+
+    char keybuf[64];
+    memcpy(keybuf, payload + start, key_len);
+    keybuf[key_len] = '\0';
+
+    KeySym keysym = XStringToKeysym(keybuf);
+    if (keysym == NoSymbol && key_len == 1) {
+        keysym = (KeySym)keybuf[0];
+    }
+    if (keysym == NoSymbol) {
+        doom_logf("unknown key: %s", keybuf);
+        return -1;
+    }
+
+    KeyCode keycode = XKeysymToKeycode(session->display, keysym);
+    if (keycode == 0) {
+        doom_logf("no keycode for keysym: %s", keybuf);
+        return -1;
+    }
+
+    refresh_session_window(session);
+    if (session->window != None) {
+        XSetInputFocus(session->display, session->window, RevertToPointerRoot, CurrentTime);
+    }
+
+    XTestFakeKeyEvent(session->display, keycode, True, CurrentTime);
+    XTestFakeKeyEvent(session->display, keycode, False, CurrentTime);
+    XFlush(session->display);
+
     return 0;
 }
 
@@ -660,7 +702,7 @@ static void handle_request(int client_fd) {
             if (session_write_input(session, req.body, req.body_len) == 0) {
                 send_response(client_fd, 200, "text/plain", "ok");
             } else {
-                send_response(client_fd, 500, "text/plain", "fifo error");
+                send_response(client_fd, 500, "text/plain", "input error");
             }
         }
     } else if (strcmp(req.method, "POST") == 0 && strcmp(req.path, "/session/close") == 0) {
@@ -695,10 +737,6 @@ int main(void) {
     }
     if (display_override && display_override[0] != '\0') {
         display_name = display_override;
-    }
-    const char *session_override = getenv("DOOM_SESSION_DIR");
-    if (session_override && session_override[0] != '\0') {
-        session_dir = session_override;
     }
     const char *wad_override = getenv("DOOM_WAD_PATH");
     if (wad_override && wad_override[0] != '\0') {

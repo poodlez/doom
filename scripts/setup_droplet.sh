@@ -11,7 +11,6 @@ fi
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_PREFIX="/opt/doom"
-SESSION_DIR="/var/lib/doom_sessions"
 SERVICE_NAME="doom"
 WAD_PATH="${INSTALL_PREFIX}/freedoom1.wad"
 WAD_URL="https://github.com/freedoom/freedoom/releases/download/v0.12.1/freedoom1.wad"
@@ -25,6 +24,7 @@ apt-get install -y \
   libjpeg-turbo8-dev \
   libturbojpeg0-dev \
   libx11-dev \
+  libxtst-dev \
   chocolate-doom \
   xvfb \
   pkg-config \
@@ -35,7 +35,6 @@ apt-get install -y \
 
 echo "==> Preparing filesystem layout"
 install -d -m 0755 "${INSTALL_PREFIX}"
-install -d -m 0777 "${SESSION_DIR}"
 rsync -a --delete "${REPO_DIR}/public/" "${INSTALL_PREFIX}/public/"
 
 if [[ ! -f "${WAD_PATH}" ]]; then

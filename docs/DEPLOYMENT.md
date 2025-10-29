@@ -17,7 +17,8 @@ cd /opt/doom-src
 
 What the script does:
 
-- Updates the OS and installs `chocolate-doom`, `libjpeg-turbo`, `xvfb`, etc.
+- Updates the OS and installs `chocolate-doom`, the capture deps (`libjpeg-turbo`,
+  `libx11-dev`, `libxtst-dev`), and `xvfb`.
 - Copies `public/` into `/opt/doom`, downloads the FreeDoom WAD, and builds the C server.
 - Installs `doom_server` into `/usr/local/bin` and drops a systemd unit that binds to port 80.
 - Enables UFW and opens ports 80/443.
@@ -56,7 +57,7 @@ For production TLS, front the service with nginx or Caddy; terminate SSL there a
 
 ```bash
 systemctl disable --now doom
-rm -rf /opt/doom /var/lib/doom_sessions /usr/local/bin/doom_server
+rm -rf /opt/doom /usr/local/bin/doom_server
 ```
 
 Destroy the droplet from the DigitalOcean dashboard when finished.
