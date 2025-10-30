@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games"
 EnvironmentFile=/etc/default/doom
 ExecStart=/usr/local/bin/doom_server
 WorkingDirectory=/opt/doom
