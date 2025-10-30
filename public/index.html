@@ -2,97 +2,328 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>doom.c — RIP AND TEAR</title>
   <style>
     :root {
       color-scheme: dark;
+      --bg: #010101;
+      --panel-bg: rgba(12, 12, 12, 0.92);
+      --accent: #76ff03;
+      --accent-soft: rgba(118, 255, 3, 0.25);
+      --accent-strong: rgba(118, 255, 3, 0.5);
+      --text: #e6ffd0;
+      --muted: #7b8770;
+      --font: "IBM Plex Mono", "Courier New", monospace;
     }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      background: #000;
-      color: #9cff57;
-      font-family: "Courier New", monospace;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, rgba(118, 255, 3, 0.08), transparent 45%), var(--bg);
+      color: var(--text);
+      font-family: var(--font);
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      gap: 24px;
-      padding: 24px;
     }
-    h1 {
-      margin: 0;
-      font-size: 2.5rem;
-    }
-    #game {
-      max-width: 640px;
-      width: 100%;
-      height: auto;
-      image-rendering: pixelated;
-      border: 2px solid #9cff57;
-      background: #111;
-    }
-    #controls {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(80px, 1fr));
+
+    .masthead {
+      width: min(1100px, 100%);
+      padding: 32px 5vw 8px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
       gap: 12px;
+    }
+
+    .masthead .title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(16px, 3vw, 36px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: clamp(2.25rem, 6vw, 3.75rem);
+    }
+
+    .masthead .tagline {
+      margin: 0;
+      font-size: clamp(0.9rem, 2.4vw, 1.1rem);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+    }
+
+    .layout {
+      width: min(1100px, 100%);
+      padding: 0 5vw 64px;
+      display: grid;
+      gap: 32px;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--accent-soft);
+      border-radius: 20px;
+      padding: clamp(20px, 4vw, 28px);
+      box-shadow: 0 0 48px rgba(118, 255, 3, 0.12);
+      backdrop-filter: blur(6px);
+    }
+
+    .screen {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #game {
       width: 100%;
-      max-width: 420px;
+      max-width: min(100%, 980px);
+      aspect-ratio: 16 / 10;
+      border-radius: 18px;
+      border: 3px solid var(--accent);
+      box-shadow: 0 0 36px rgba(118, 255, 3, 0.35);
+      background: #020202;
+      image-rendering: pixelated;
     }
-    button {
-      padding: 12px;
-      font: 600 16px "Courier New", monospace;
-      background: #111;
-      color: #9cff57;
-      border: 2px solid #9cff57;
+
+    .controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .controls-panel h2 {
+      margin: 0;
+      font-size: clamp(1.2rem, 3.2vw, 1.6rem);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+    }
+
+    .controls-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      justify-items: stretch;
+    }
+
+    .controls-grid .spacer {
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .controls-grid .wide {
+      grid-column: span 3;
+    }
+
+    @media (min-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        align-items: start;
+      }
+    }
+
+    @media (min-width: 640px) {
+      .controls-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .controls-grid .wide {
+        grid-column: span 4;
+      }
+    }
+
+    .control-btn {
+      position: relative;
+      padding: clamp(16px, 3vw, 22px);
+      border-radius: 16px;
+      border: 2px solid var(--accent);
+      background: rgba(118, 255, 3, 0.08);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: clamp(1rem, 3.2vw, 1.25rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      touch-action: manipulation;
+      user-select: none;
     }
-    button:hover {
-      background: #9cff57;
-      color: #000;
+
+    .control-btn .hint {
+      display: block;
+      margin-top: 6px;
+      font-size: clamp(0.7rem, 2.1vw, 0.85rem);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0.04em;
+      color: var(--muted);
     }
+
+    .control-btn:hover,
+    .control-btn:focus-visible {
+      outline: none;
+      transform: translateY(-2px);
+      box-shadow: 0 0 18px var(--accent-soft);
+      background: rgba(118, 255, 3, 0.18);
+    }
+
+    .control-btn.active {
+      transform: translateY(-2px);
+      box-shadow: 0 0 22px var(--accent-strong);
+      background: rgba(118, 255, 3, 0.28);
+    }
+
+    #status {
+      min-height: 1.4rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      transition: color 180ms ease;
+    }
+
+    #status[data-state="error"] {
+      color: #ff6262;
+    }
+
     footer {
+      width: min(900px, 100%);
+      padding: 0 5vw 48px;
+      text-align: center;
+      color: var(--muted);
       font-size: 0.85rem;
-      color: #666;
+      letter-spacing: 0.04em;
+    }
+
+    a {
+      color: var(--accent);
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🩸 doom.c 🩸</h1>
-  </header>
-  <main>
-    <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Doom stream">
-    <div id="controls">
-      <span></span>
-      <button data-key="key:w">W ↑</button>
-      <span></span>
-      <button data-key="key:a">A ←</button>
-      <button data-key="key:s">S ↓</button>
-      <button data-key="key:d">D →</button>
-      <button data-key="key:space">SPACE</button>
-      <button data-key="key:Control_L">CTRL</button>
-      <button data-key="key:Escape">ESC</button>
+  <header class="masthead">
+    <div class="title">
+      <span role="presentation">🩸</span>
+      <span>doom.c</span>
+      <span role="presentation">🩸</span>
     </div>
+    <p class="tagline">stream · mjpeg · xtest · rip and tear</p>
+  </header>
+
+  <main class="layout">
+    <section class="screen panel" aria-label="Live Doom stream">
+      <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Live Doom gameplay stream">
+    </section>
+
+    <section class="controls-panel panel" aria-label="Input controls">
+      <h2>Controls</h2>
+      <div class="controls-grid" aria-label="Movement keys">
+        <span class="spacer"></span>
+        <button class="control-btn" data-key="key:w">
+          W
+          <span class="hint">forward</span>
+        </button>
+        <span class="spacer"></span>
+
+        <button class="control-btn" data-key="key:a">
+          A
+          <span class="hint">strafe left</span>
+        </button>
+        <button class="control-btn" data-key="key:s">
+          S
+          <span class="hint">backpedal</span>
+        </button>
+        <button class="control-btn" data-key="key:d">
+          D
+          <span class="hint">strafe right</span>
+        </button>
+      </div>
+
+      <div class="controls-grid" aria-label="Action keys">
+        <button class="control-btn wide" data-key="key:space">
+          Space
+          <span class="hint">use / open</span>
+        </button>
+        <button class="control-btn" data-key="key:Control_L">
+          Ctrl
+          <span class="hint">fire</span>
+        </button>
+        <button class="control-btn" data-key="key:Escape">
+          Esc
+          <span class="hint">menu</span>
+        </button>
+        <button class="control-btn" data-key="key:Return">
+          Enter
+          <span class="hint">confirm</span>
+        </button>
+      </div>
+
+      <div id="status" role="status" aria-live="polite"></div>
+
+      <p class="tagline" style="text-transform:none; letter-spacing:0.06em;">
+        Keyboard shortcuts also work: WASD or arrow keys to move, Space to use, Ctrl to fire, Esc to pause.
+      </p>
+    </section>
   </main>
+
   <footer>
-    <p>Heads-up: Inputs are naive POSTs. Be kind while we wire auth & rate limits.</p>
+    Heads-up: inputs are direct HTTP POSTs with no auth or rate limiting (yet). Be gentle while we harden the stack.
   </footer>
+
   <script>
     const sessionId = 0;
     const endpoint = (path) => `${path}?session=${sessionId}`;
+    const statusEl = document.getElementById('status');
+    let statusTimer = null;
 
-    async function sendInput(payload) {
-      try {
-        await fetch(endpoint('/input'), {
-          method: 'POST',
-          body: payload,
-        });
-      } catch (err) {
-        console.error('input failed', err);
+    function reportError(message) {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.textContent = message;
+      statusEl.dataset.state = "error";
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => {
+        statusEl.textContent = "";
+        statusEl.dataset.state = "";
+      }, 2500);
+    }
+
+    function clearError() {
+      if (!statusEl) {
+        return;
+      }
+      if (statusEl.dataset.state === "error") {
+        statusEl.textContent = "";
+        statusEl.dataset.state = "";
       }
     }
 
-    const KEY_MAP = {
+    function sendInput(payload) {
+      if (!payload) {
+        return;
+      }
+      fetch(endpoint('/input'), {
+        method: 'POST',
+        body: payload,
+      }).then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        clearError();
+      }).catch((err) => {
+        console.error('input failed', err);
+        reportError('Input failed — make sure the stream is focused.');
+      });
+    }
+
+    const KEY_NAME_MAP = {
       ' ': 'space',
       Space: 'space',
       Spacebar: 'space',
@@ -107,40 +338,98 @@
       Esc: 'Escape',
       Enter: 'Return',
       Return: 'Return',
+      Tab: 'Tab',
     };
 
-    function normalizeKey(key) {
-      if (!key) {
+    const KEY_CODE_MAP = {
+      KeyW: 'w',
+      KeyA: 'a',
+      KeyS: 's',
+      KeyD: 'd',
+      KeyQ: 'q',
+      KeyE: 'e',
+      ArrowUp: 'Up',
+      ArrowDown: 'Down',
+      ArrowLeft: 'Left',
+      ArrowRight: 'Right',
+      Space: 'space',
+      Spacebar: 'space',
+      ControlLeft: 'Control_L',
+      ControlRight: 'Control_R',
+      Escape: 'Escape',
+      Enter: 'Return',
+      NumpadEnter: 'Return',
+    };
+
+    function normalizeKeyboardEvent(event) {
+      if (!event) {
         return null;
       }
-      if (KEY_MAP[key]) {
-        return KEY_MAP[key];
+      if (KEY_CODE_MAP[event.code]) {
+        return KEY_CODE_MAP[event.code];
       }
-      if (key.length === 1) {
-        return key.toLowerCase();
+      if (KEY_NAME_MAP[event.key]) {
+        return KEY_NAME_MAP[event.key];
+      }
+      if (event.key && event.key.length === 1) {
+        return event.key.toLowerCase();
       }
       return null;
     }
 
-    document.querySelectorAll('button[data-key]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const payload = btn.dataset.key;
-        if (payload) {
-          sendInput(payload);
-        }
-      });
-    });
-
     document.addEventListener('keydown', (event) => {
-      if (event.repeat) {
-        return;
-      }
-      const normalized = normalizeKey(event.key);
+      const normalized = normalizeKeyboardEvent(event);
       if (!normalized) {
         return;
       }
       event.preventDefault();
       sendInput(`key:${normalized}`);
+    });
+
+    const HOLD_INTERVAL_MS = 110;
+    const holdTimers = new Map();
+
+    function startHold(btn) {
+      const payload = btn.dataset.key;
+      if (!payload) {
+        return;
+      }
+      sendInput(payload);
+      btn.classList.add('active');
+      const timer = setInterval(() => sendInput(payload), HOLD_INTERVAL_MS);
+      holdTimers.set(btn, timer);
+    }
+
+    function stopHold(btn) {
+      btn.classList.remove('active');
+      const timer = holdTimers.get(btn);
+      if (timer) {
+        clearInterval(timer);
+        holdTimers.delete(btn);
+      }
+    }
+
+    document.querySelectorAll('.control-btn[data-key]').forEach((btn) => {
+      btn.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        btn.setPointerCapture(event.pointerId);
+        startHold(btn);
+      });
+
+      const finish = () => stopHold(btn);
+
+      btn.addEventListener('pointerup', (event) => {
+        finish();
+        btn.releasePointerCapture(event.pointerId);
+      });
+      btn.addEventListener('pointercancel', finish);
+      btn.addEventListener('lostpointercapture', finish);
+      btn.addEventListener('pointerleave', (event) => {
+        if (event.buttons === 0) {
+          finish();
+        }
+      });
+      btn.addEventListener('click', (event) => event.preventDefault());
     });
   </script>
 </body>

@@ -51,6 +51,8 @@ static const char *display_name = DISPLAY_DEFAULT;
 static const char *wad_path = WAD_PATH_DEFAULT;
 static int server_port = SERVER_PORT;
 
+static KeySym resolve_keysym(const char *name);
+
 static void doom_logf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -230,10 +232,7 @@ static int session_write_input(struct Session *session, const char *payload, siz
     memcpy(keybuf, payload + start, key_len);
     keybuf[key_len] = '\0';
 
-    KeySym keysym = XStringToKeysym(keybuf);
-    if (keysym == NoSymbol && key_len == 1) {
-        keysym = (KeySym)keybuf[0];
-    }
+    KeySym keysym = resolve_keysym(keybuf);
     if (keysym == NoSymbol) {
         doom_logf("unknown key: %s", keybuf);
         return -1;
@@ -382,6 +381,127 @@ static bool refresh_session_window(struct Session *session) {
     }
     session->window = root;
     return false;
+}
+
+struct KeyAlias {
+    const char *incoming;
+    const char *keysym_name;
+};
+
+static const struct KeyAlias key_aliases[] = {
+    {" ", "space"},
+    {"space", "space"},
+    {"spacebar", "space"},
+    {"arrowup", "Up"},
+    {"up", "Up"},
+    {"arrowdown", "Down"},
+    {"down", "Down"},
+    {"arrowleft", "Left"},
+    {"left", "Left"},
+    {"arrowright", "Right"},
+    {"right", "Right"},
+    {"ctrl", "Control_L"},
+    {"control", "Control_L"},
+    {"control_l", "Control_L"},
+    {"controlleft", "Control_L"},
+    {"ctrl_l", "Control_L"},
+    {"control_r", "Control_R"},
+    {"controlright", "Control_R"},
+    {"ctrl_r", "Control_R"},
+    {"alt", "Alt_L"},
+    {"alt_l", "Alt_L"},
+    {"altleft", "Alt_L"},
+    {"alt_r", "Alt_R"},
+    {"altright", "Alt_R"},
+    {"shift", "Shift_L"},
+    {"shift_l", "Shift_L"},
+    {"shiftleft", "Shift_L"},
+    {"shift_r", "Shift_R"},
+    {"shiftright", "Shift_R"},
+    {"enter", "Return"},
+    {"return", "Return"},
+    {"escape", "Escape"},
+    {"esc", "Escape"},
+    {"tab", "Tab"},
+    {"backspace", "BackSpace"},
+    {"capslock", "Caps_Lock"},
+    {"meta", "Super_L"},
+    {"meta_l", "Super_L"},
+    {"metal", "Super_L"},
+    {"meta_r", "Super_R"},
+    {"metar", "Super_R"},
+};
+
+static KeySym resolve_keysym(const char *name) {
+    if (!name || name[0] == '\0') {
+        return NoSymbol;
+    }
+
+    char trimmed[64];
+    size_t len = strnlen(name, sizeof(trimmed) - 1);
+    memcpy(trimmed, name, len);
+    trimmed[len] = '\0';
+
+    char lowered[64];
+    for (size_t i = 0; i < len; ++i) {
+        lowered[i] = (char)tolower((unsigned char)trimmed[i]);
+    }
+    lowered[len] = '\0';
+
+    for (size_t i = 0; i < sizeof(key_aliases) / sizeof(key_aliases[0]); ++i) {
+        if (strcmp(lowered, key_aliases[i].incoming) == 0) {
+            KeySym alias = XStringToKeysym(key_aliases[i].keysym_name);
+            if (alias != NoSymbol) {
+                return alias;
+            }
+        }
+    }
+
+    if (strncmp(trimmed, "Key", 3) == 0 && len == 4) {
+        unsigned char c = (unsigned char)trimmed[3];
+        if (isalpha(c)) {
+            char keystr[2] = {(char)tolower(c), '\0'};
+            KeySym sym = XStringToKeysym(keystr);
+            if (sym != NoSymbol) {
+                return sym;
+            }
+        }
+    }
+
+    if (strncmp(trimmed, "Digit", 5) == 0 && len == 6) {
+        unsigned char c = (unsigned char)trimmed[5];
+        if (isdigit(c)) {
+            char keystr[2] = {(char)c, '\0'};
+            KeySym sym = XStringToKeysym(keystr);
+            if (sym != NoSymbol) {
+                return sym;
+            }
+        }
+    }
+
+    KeySym direct = XStringToKeysym(trimmed);
+    if (direct != NoSymbol) {
+        return direct;
+    }
+
+    KeySym lower_sym = XStringToKeysym(lowered);
+    if (lower_sym != NoSymbol) {
+        return lower_sym;
+    }
+
+    if (len == 1) {
+        unsigned char c = (unsigned char)trimmed[0];
+        if (isalpha(c)) {
+            char keystr[2] = {(char)tolower(c), '\0'};
+            KeySym sym = XStringToKeysym(keystr);
+            if (sym != NoSymbol) {
+                return sym;
+            }
+        }
+        return (KeySym)c;
+    }
+
+    return NoSymbol;
 }
 
 static int x11_error_handler(Display *display, XErrorEvent *error) {
