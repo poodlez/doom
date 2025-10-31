@@ -7,18 +7,12 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #020202;
-      --bg-gradient: radial-gradient(circle at 50% -20%, rgba(143, 255, 47, 0.14), transparent 60%);
-      --panel-bg: rgba(7, 9, 7, 0.88);
-      --accent: #8fff2f;
-      --accent-soft: rgba(143, 255, 47, 0.26);
-      --accent-strong: rgba(143, 255, 47, 0.5);
-      --accent-glow: rgba(143, 255, 47, 0.3);
-      --text: #f2ffe3;
-      --muted: #8ba47b;
+      --bg: #050505;
+      --bg-glow: radial-gradient(circle at center, rgba(120, 255, 40, 0.12), transparent 65%);
+      --text: #f5ffe5;
+      --muted: rgba(240, 255, 220, 0.6);
+      --accent: rgba(135, 255, 55, 0.75);
       --font: "IBM Plex Mono", "Courier New", monospace;
-      --radius: 22px;
-      --transition: 140ms ease;
     }
 
     *, *::before, *::after {
@@ -28,330 +22,99 @@
     body {
       margin: 0;
       min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(16px, 4vw, 32px);
+      padding: clamp(12px, 4vw, 24px);
       background: var(--bg);
-      background-image: var(--bg-gradient);
+      background-image: var(--bg-glow);
+      background-position: center;
       background-repeat: no-repeat;
-      color: var(--text);
       font-family: var(--font);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: clamp(36px, 6vw, 72px);
-      padding: clamp(24px, 6vw, 64px) clamp(16px, 6vw, 48px) clamp(56px, 8vw, 96px);
+      color: var(--text);
     }
 
-    .masthead,
-    .layout,
-    footer {
-      width: min(1080px, 100%);
-    }
-
-    .masthead {
-      padding: 0;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: clamp(12px, 2vw, 18px);
-    }
-
-    .masthead .title {
+    main {
+      flex: 1 0 auto;
+      width: min(98vw, 1440px);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: clamp(16px, 4vw, 40px);
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-size: clamp(2.4rem, 7vw, 3.8rem);
-    }
-
-    .masthead .title span[role="presentation"] {
-      font-size: clamp(1.6rem, 4.5vw, 2.6rem);
-      filter: drop-shadow(0 0 12px rgba(143, 255, 47, 0.45));
-    }
-
-    .masthead .tagline {
-      margin: 0;
-      font-size: clamp(0.9rem, 2.6vw, 1.08rem);
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.24em;
-    }
-
-    .layout {
-      display: grid;
-      gap: clamp(24px, 5vw, 40px);
-      align-items: stretch;
-    }
-
-    .panel {
-      position: relative;
-      background: var(--panel-bg);
-      border: 1px solid var(--accent-soft);
-      border-radius: var(--radius);
-      padding: clamp(20px, 5vw, 32px);
-      box-shadow: 0 24px 60px rgba(8, 24, 4, 0.55);
-      backdrop-filter: blur(9px);
-    }
-
-    .panel::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      border: 1px solid rgba(143, 255, 47, 0.16);
-      border-radius: inherit;
-    }
-
-    .screen {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: clamp(8px, 2vw, 16px);
     }
 
     #game {
-      display: block;
       width: 100%;
-      max-width: 980px;
+      max-height: calc(100vh - 140px);
       aspect-ratio: 16 / 10;
-      border-radius: calc(var(--radius) - 6px);
-      border: 2px solid var(--accent);
-      box-shadow: 0 0 36px var(--accent-glow);
-      background: #020402;
-      object-fit: cover;
+      border-radius: clamp(10px, 1.4vw, 20px);
+      border: 2px solid rgba(135, 255, 55, 0.35);
+      box-shadow: 0 0 clamp(30px, 7vw, 80px) rgba(135, 255, 55, 0.32);
+      background: #030303;
       image-rendering: pixelated;
-    }
-
-    .controls-panel {
-      display: flex;
-      flex-direction: column;
-      gap: clamp(20px, 4.5vw, 32px);
-    }
-
-    .controls-panel h2 {
-      margin: 0;
-      font-size: clamp(1.3rem, 3.5vw, 1.7rem);
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: var(--accent);
-    }
-
-    .controls-grid {
-      display: grid;
-      gap: clamp(12px, 3.2vw, 18px);
-    }
-
-    .controls-grid.movement {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-areas:
-        ". forward ."
-        "left back right";
-    }
-
-    .controls-grid.movement .control-btn--forward {
-      grid-area: forward;
-    }
-
-    .controls-grid.movement .control-btn--left {
-      grid-area: left;
-    }
-
-    .controls-grid.movement .control-btn--back {
-      grid-area: back;
-    }
-
-    .controls-grid.movement .control-btn--right {
-      grid-area: right;
-    }
-
-    .controls-grid.actions {
-      grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-    }
-
-    .controls-grid.actions .wide {
-      grid-column: 1 / -1;
-    }
-
-    .control-btn {
-      position: relative;
-      min-height: clamp(72px, 24vw, 108px);
-      padding: clamp(18px, 4.5vw, 24px);
-      border-radius: 18px;
-      border: 1px solid var(--accent);
-      background: rgba(143, 255, 47, 0.08);
-      color: var(--text);
-      font-family: var(--font);
-      font-size: clamp(1rem, 3.4vw, 1.25rem);
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      text-align: center;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: clamp(4px, 1.6vw, 8px);
-      transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition);
-      touch-action: manipulation;
-      user-select: none;
-    }
-
-    .control-btn .hint {
-      display: block;
-      font-size: clamp(0.72rem, 2.4vw, 0.88rem);
-      font-weight: 500;
-      text-transform: none;
-      letter-spacing: 0.04em;
-      color: var(--muted);
-    }
-
-    .control-btn:hover,
-    .control-btn:focus-visible {
-      outline: none;
-      transform: translateY(-3px);
-      box-shadow: 0 16px 28px rgba(143, 255, 47, 0.18);
-      background: rgba(143, 255, 47, 0.18);
-      border-color: var(--accent-strong);
-    }
-
-    .control-btn:active {
-      transform: translateY(-1px) scale(0.995);
-    }
-
-    .control-btn.active {
-      transform: translateY(-3px);
-      box-shadow: 0 0 28px var(--accent-glow);
-      background: rgba(143, 255, 47, 0.28);
-      border-color: var(--accent-strong);
+      object-fit: cover;
     }
 
     #status {
       min-height: 1.4rem;
-      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
-      letter-spacing: 0.06em;
+      font-size: clamp(0.78rem, 2vw, 0.95rem);
+      letter-spacing: 0.1em;
       color: var(--muted);
-      transition: color 180ms ease;
-    }
-
-    #status[data-state="error"] {
-      color: #ff6f70;
-    }
-
-    .controls-note {
-      margin: 0;
-      font-size: clamp(0.82rem, 2.2vw, 0.94rem);
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      text-transform: none;
-      line-height: 1.5;
+      text-align: center;
     }
 
     footer {
+      flex: 0 0 auto;
+      width: min(96vw, 960px);
+      padding: clamp(10px, 2.8vw, 16px);
       text-align: center;
+      font-size: clamp(0.72rem, 1.8vw, 0.9rem);
+      letter-spacing: 0.08em;
       color: var(--muted);
-      font-size: clamp(0.78rem, 2.1vw, 0.9rem);
-      letter-spacing: 0.05em;
-      line-height: 1.6;
+      background: rgba(12, 24, 10, 0.6);
+      border: 1px solid rgba(135, 255, 55, 0.18);
+      border-radius: clamp(12px, 2vw, 18px);
+      backdrop-filter: blur(10px);
     }
 
-    a {
-      color: var(--accent);
-      text-decoration: none;
+    footer strong {
+      color: var(--text);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      margin-right: clamp(10px, 3vw, 18px);
     }
 
-    a:hover,
-    a:focus-visible {
-      text-decoration: underline;
+    footer span {
+      display: inline-block;
+      margin: 0 clamp(6px, 3vw, 12px);
     }
 
-    @media (min-width: 960px) {
-      .layout {
-        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-      }
-    }
-
-    @media (max-width: 599px) {
-      body {
-        gap: clamp(28px, 10vw, 48px);
+    @media (max-width: 640px) {
+      #game {
+        max-height: calc(100vh - 200px);
       }
 
-      .control-btn {
-        min-height: clamp(68px, 28vw, 96px);
-      }
-
-      .controls-grid.actions {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      footer {
+        font-size: clamp(0.68rem, 3.8vw, 0.82rem);
       }
     }
   </style>
 </head>
 <body>
-  <header class="masthead">
-    <div class="title">
-      <span role="presentation">🩸</span>
-      <span>doom.c</span>
-      <span role="presentation">🩸</span>
-    </div>
-    <p class="tagline">stream · mjpeg · xtest · rip and tear</p>
-  </header>
-
-  <main class="layout">
-    <section class="screen panel" aria-label="Live Doom stream">
-      <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Live Doom gameplay stream">
-    </section>
-
-    <section class="controls-panel panel" aria-label="Input controls">
-      <h2>Controls</h2>
-      <div class="controls-grid movement" aria-label="Movement keys">
-        <button class="control-btn control-btn--forward" data-key="key:w">
-          W
-          <span class="hint">forward</span>
-        </button>
-        <button class="control-btn control-btn--left" data-key="key:a">
-          A
-          <span class="hint">strafe left</span>
-        </button>
-        <button class="control-btn control-btn--back" data-key="key:s">
-          S
-          <span class="hint">backpedal</span>
-        </button>
-        <button class="control-btn control-btn--right" data-key="key:d">
-          D
-          <span class="hint">strafe right</span>
-        </button>
-      </div>
-
-      <div class="controls-grid actions" aria-label="Action keys">
-        <button class="control-btn wide" data-key="key:space">
-          Space
-          <span class="hint">use / open</span>
-        </button>
-        <button class="control-btn" data-key="key:Control_L">
-          Ctrl
-          <span class="hint">fire</span>
-        </button>
-        <button class="control-btn" data-key="key:Escape">
-          Esc
-          <span class="hint">menu</span>
-        </button>
-        <button class="control-btn" data-key="key:Return">
-          Enter
-          <span class="hint">confirm</span>
-        </button>
-      </div>
-
-      <div id="status" role="status" aria-live="polite"></div>
-
-      <p class="controls-note">
-        Keyboard shortcuts also work: WASD or arrow keys to move, Space to use, Ctrl to fire, Esc to pause.
-      </p>
-    </section>
+  <main aria-label="Live Doom stream">
+    <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Live Doom gameplay stream" tabindex="0">
   </main>
 
+  <div id="status" role="status" aria-live="polite"></div>
+
   <footer>
-    Heads-up: inputs are direct HTTP POSTs with no auth or rate limiting (yet). Be gentle while we harden the stack.
+    <strong>Controls</strong>
+    <span>WASD or arrow keys: move</span>
+    <span>Space: use / open</span>
+    <span>Ctrl: fire</span>
+    <span>Enter: confirm</span>
+    <span>Esc: menu</span>
   </footer>
 
   <script>
@@ -389,6 +152,9 @@
       }
       fetch(endpoint('/input'), {
         method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
         body: payload,
       }).then((res) => {
         if (!res.ok) {
@@ -455,59 +221,51 @@
       return null;
     }
 
+    const activeKeys = new Set();
+    const gameEl = document.getElementById('game');
+
+    window.addEventListener('load', () => {
+      gameEl?.focus();
+    });
+
+    function sendKeyState(key, state) {
+      if (!key || !state) {
+        return;
+      }
+      sendInput(`key:${key}:${state}`);
+    }
+
     document.addEventListener('keydown', (event) => {
       const normalized = normalizeKeyboardEvent(event);
       if (!normalized) {
         return;
       }
-      event.preventDefault();
-      sendInput(`key:${normalized}`);
-    });
-
-    const HOLD_INTERVAL_MS = 110;
-    const holdTimers = new Map();
-
-    function startHold(btn) {
-      const payload = btn.dataset.key;
-      if (!payload) {
+      if (event.repeat) {
         return;
       }
-      sendInput(payload);
-      btn.classList.add('active');
-      const timer = setInterval(() => sendInput(payload), HOLD_INTERVAL_MS);
-      holdTimers.set(btn, timer);
-    }
+      event.preventDefault();
+      activeKeys.add(normalized);
+      sendKeyState(normalized, 'down');
+    });
 
-    function stopHold(btn) {
-      btn.classList.remove('active');
-      const timer = holdTimers.get(btn);
-      if (timer) {
-        clearInterval(timer);
-        holdTimers.delete(btn);
+    document.addEventListener('keyup', (event) => {
+      const normalized = normalizeKeyboardEvent(event);
+      if (!normalized) {
+        return;
       }
-    }
+      event.preventDefault();
+      if (activeKeys.has(normalized)) {
+        activeKeys.delete(normalized);
+      }
+      sendKeyState(normalized, 'up');
+    });
 
-    document.querySelectorAll('.control-btn[data-key]').forEach((btn) => {
-      btn.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        btn.setPointerCapture(event.pointerId);
-        startHold(btn);
-      });
-
-      const finish = () => stopHold(btn);
-
-      btn.addEventListener('pointerup', (event) => {
-        finish();
-        btn.releasePointerCapture(event.pointerId);
-      });
-      btn.addEventListener('pointercancel', finish);
-      btn.addEventListener('lostpointercapture', finish);
-      btn.addEventListener('pointerleave', (event) => {
-        if (event.buttons === 0) {
-          finish();
-        }
-      });
-      btn.addEventListener('click', (event) => event.preventDefault());
+    window.addEventListener('blur', () => {
+      if (activeKeys.size === 0) {
+        return;
+      }
+      activeKeys.forEach((key) => sendKeyState(key, 'up'));
+      activeKeys.clear();
     });
   </script>
 </body>

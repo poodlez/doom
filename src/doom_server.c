@@ -20,6 +20,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 #define SERVER_PORT 8080
 #define LISTEN_BACKLOG 32
@@ -27,7 +28,7 @@
 #define FRAME_WIDTH 320
 #define FRAME_HEIGHT 200
 #define DISPLAY_DEFAULT ":99"
-#define WAD_PATH_DEFAULT "/root/freedoom1.wad"
+#define WAD_PATH_DEFAULT "/opt/doom/freedoom1.wad"
 #define DOOM_BIN "chocolate-doom"
 #define JPEG_QUALITY 80
 #define STREAM_BOUNDARY "frame"
@@ -48,7 +49,7 @@ struct Session {
 static struct Session sessions[MAX_SESSIONS];
 static pthread_mutex_t sessions_lock = PTHREAD_MUTEX_INITIALIZER;
 static const char *display_name = DISPLAY_DEFAULT;
-static const char *wad_path = WAD_PATH_DEFAULT;
+static char wad_path[PATH_MAX] = WAD_PATH_DEFAULT;
 static int server_port = SERVER_PORT;
 
 static KeySym resolve_keysym(const char *name);
@@ -67,6 +68,7 @@ static void doom_logf(const char *fmt, ...) {
 
 static Window find_doom_window(Display *display);
 static bool refresh_session_window(struct Session *session);
+static bool ensure_window_display(struct Session *session);
 static unsigned char extract_component(unsigned long pixel, unsigned long mask);
 static int x11_error_handler(Display *display, XErrorEvent *error);
 
@@ -99,11 +101,49 @@ static void session_free(struct Session *session) {
     memset(session, 0, sizeof(*session));
 }
 
+static bool wad_is_readable(const char *path) {
+    return path && path[0] != '\0' && access(path, R_OK) == 0;
+}
+
+static void configure_wad_path(const char *override_path) {
+    const char *candidates[] = {
+        override_path,
+        WAD_PATH_DEFAULT,
+        "/root/freedoom1.wad",
+        "/usr/share/games/doom/freedoom1.wad",
+        "./freedoom1.wad",
+        NULL
+    };
+
+    for (size_t i = 0; candidates[i]; ++i) {
+        const char *candidate = candidates[i];
+        if (!candidate || candidate[0] == '\0') {
+            continue;
+        }
+        if (wad_is_readable(candidate)) {
+            strncpy(wad_path, candidate, sizeof(wad_path) - 1);
+            wad_path[sizeof(wad_path) - 1] = '\0';
+            doom_logf("using WAD at %s", wad_path);
+            return;
+        }
+    }
+
+    const char *fallback = override_path && override_path[0] ? override_path : WAD_PATH_DEFAULT;
+    strncpy(wad_path, fallback, sizeof(wad_path) - 1);
+    wad_path[sizeof(wad_path) - 1] = '\0';
+    doom_logf("warning: unable to find readable WAD (last tried %s)", wad_path);
+}
+
 static int maybe_spawn_doom(struct Session *session) {
     const char *disable = getenv("DOOM_DISABLE_SPAWN");
     if (disable && disable[0] == '1') {
         doom_logf("DOOM_DISABLE_SPAWN=1 → skipping chocolate-doom launch for session %d", session->id);
         return 0;
+    }
+
+    if (!wad_is_readable(wad_path)) {
+        doom_logf("cannot launch session %d — WAD missing or unreadable at %s", session->id, wad_path);
+        return -1;
     }
 
     pid_t child = fork();
@@ -168,6 +208,7 @@ static struct Session *session_get_or_create(int session_id) {
             Window found = find_doom_window(session->display);
             if (found != None) {
                 session->window = found;
+                ensure_window_display(session);
                 doom_logf("bound session %d to window 0x%lx", session_id, (unsigned long)session->window);
             } else {
                 session->window = DefaultRootWindow(session->display);
@@ -224,13 +265,42 @@ static int session_write_input(struct Session *session, const char *payload, siz
     }
 
     size_t key_len = end - start;
-    if (key_len >= 64) {
-        key_len = 63;
+    if (key_len >= 63) {
+        key_len = 62;
     }
 
     char keybuf[64];
     memcpy(keybuf, payload + start, key_len);
     keybuf[key_len] = '\0';
+
+    bool explicit_action = false;
+    bool is_press = true;
+
+    char *action_sep = strrchr(keybuf, ':');
+    if (action_sep && action_sep[1] != '\0') {
+        char action[16];
+        size_t action_len = 0;
+        while (action_sep[1 + action_len] != '\0' && action_len < sizeof(action) - 1) {
+            action_len++;
+        }
+        memcpy(action, action_sep + 1, action_len);
+        action[action_len] = '\0';
+        for (size_t i = 0; i < action_len; ++i) {
+            action[i] = (char)tolower((unsigned char)action[i]);
+        }
+        if (strcmp(action, "down") == 0 || strcmp(action, "press") == 0) {
+            explicit_action = true;
+            is_press = true;
+        } else if (strcmp(action, "up") == 0 || strcmp(action, "release") == 0) {
+            explicit_action = true;
+            is_press = false;
+        }
+        *action_sep = '\0';
+    }
+
+    if (keybuf[0] == '\0') {
+        return -1;
+    }
 
     KeySym keysym = resolve_keysym(keybuf);
     if (keysym == NoSymbol) {
@@ -245,12 +315,14 @@ static int session_write_input(struct Session *session, const char *payload, siz
     }
 
     refresh_session_window(session);
-    if (session->window != None) {
-        XSetInputFocus(session->display, session->window, RevertToPointerRoot, CurrentTime);
-    }
+    ensure_window_display(session);
 
-    XTestFakeKeyEvent(session->display, keycode, True, CurrentTime);
-    XTestFakeKeyEvent(session->display, keycode, False, CurrentTime);
+    if (explicit_action) {
+        XTestFakeKeyEvent(session->display, keycode, is_press ? True : False, CurrentTime);
+    } else {
+        XTestFakeKeyEvent(session->display, keycode, True, CurrentTime);
+        XTestFakeKeyEvent(session->display, keycode, False, CurrentTime);
+    }
     XFlush(session->display);
 
     return 0;
@@ -315,7 +387,26 @@ static bool window_is_viewable(Display *display, Window window) {
     if (attrs.map_state != IsViewable) {
         return false;
     }
-    return attrs.width == FRAME_WIDTH && attrs.height == FRAME_HEIGHT;
+    return attrs.width >= FRAME_WIDTH && attrs.height >= FRAME_HEIGHT;
+}
+
+static bool ensure_window_display(struct Session *session) {
+    if (!session || !session->display || session->window == None) {
+        return false;
+    }
+
+    XWindowAttributes attrs;
+    if (XGetWindowAttributes(session->display, session->window, &attrs)) {
+        if (attrs.map_state != IsViewable) {
+            XMapRaised(session->display, session->window);
+        }
+        if (!attrs.override_redirect) {
+            XRaiseWindow(session->display, session->window);
+        }
+    }
+
+    XSetInputFocus(session->display, session->window, RevertToPointerRoot, CurrentTime);
+    return true;
 }
 
 static void find_window_recursive(Display *display, Window window, Window *result) {
@@ -373,6 +464,7 @@ static bool refresh_session_window(struct Session *session) {
             doom_logf("bound session %d to window 0x%lx", session->id, (unsigned long)found);
         }
         session->window = found;
+        ensure_window_display(session);
         return true;
     }
 
@@ -859,9 +951,10 @@ int main(void) {
         display_name = display_override;
     }
     const char *wad_override = getenv("DOOM_WAD_PATH");
-    if (wad_override && wad_override[0] != '\0') {
-        wad_path = wad_override;
+    if (wad_override && wad_override[0] == '\0') {
+        wad_override = NULL;
     }
+    configure_wad_path(wad_override);
     const char *port_override = getenv("DOOM_SERVER_PORT");
     if (port_override && port_override[0] != '\0') {
         int port = atoi(port_override);
