@@ -7,14 +7,18 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #010101;
-      --panel-bg: rgba(12, 12, 12, 0.92);
-      --accent: #76ff03;
-      --accent-soft: rgba(118, 255, 3, 0.25);
-      --accent-strong: rgba(118, 255, 3, 0.5);
-      --text: #e6ffd0;
-      --muted: #7b8770;
+      --bg: #020202;
+      --bg-gradient: radial-gradient(circle at 50% -20%, rgba(143, 255, 47, 0.14), transparent 60%);
+      --panel-bg: rgba(7, 9, 7, 0.88);
+      --accent: #8fff2f;
+      --accent-soft: rgba(143, 255, 47, 0.26);
+      --accent-strong: rgba(143, 255, 47, 0.5);
+      --accent-glow: rgba(143, 255, 47, 0.3);
+      --text: #f2ffe3;
+      --muted: #8ba47b;
       --font: "IBM Plex Mono", "Courier New", monospace;
+      --radius: 22px;
+      --transition: 140ms ease;
     }
 
     *, *::before, *::after {
@@ -23,84 +27,111 @@
 
     body {
       margin: 0;
-      min-height: 100vh;
-      background: radial-gradient(circle at top, rgba(118, 255, 3, 0.08), transparent 45%), var(--bg);
+      min-height: 100svh;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      background-repeat: no-repeat;
       color: var(--text);
       font-family: var(--font);
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: clamp(36px, 6vw, 72px);
+      padding: clamp(24px, 6vw, 64px) clamp(16px, 6vw, 48px) clamp(56px, 8vw, 96px);
+    }
+
+    .masthead,
+    .layout,
+    footer {
+      width: min(1080px, 100%);
     }
 
     .masthead {
-      width: min(1100px, 100%);
-      padding: 32px 5vw 8px;
+      padding: 0;
       text-align: center;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      align-items: center;
+      gap: clamp(12px, 2vw, 18px);
     }
 
     .masthead .title {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: clamp(16px, 3vw, 36px);
-      letter-spacing: 0.12em;
+      gap: clamp(16px, 4vw, 40px);
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      font-size: clamp(2.25rem, 6vw, 3.75rem);
+      font-size: clamp(2.4rem, 7vw, 3.8rem);
+    }
+
+    .masthead .title span[role="presentation"] {
+      font-size: clamp(1.6rem, 4.5vw, 2.6rem);
+      filter: drop-shadow(0 0 12px rgba(143, 255, 47, 0.45));
     }
 
     .masthead .tagline {
       margin: 0;
-      font-size: clamp(0.9rem, 2.4vw, 1.1rem);
+      font-size: clamp(0.9rem, 2.6vw, 1.08rem);
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.24em;
     }
 
     .layout {
-      width: min(1100px, 100%);
-      padding: 0 5vw 64px;
       display: grid;
-      gap: 32px;
+      gap: clamp(24px, 5vw, 40px);
+      align-items: stretch;
     }
 
     .panel {
+      position: relative;
       background: var(--panel-bg);
       border: 1px solid var(--accent-soft);
-      border-radius: 20px;
-      padding: clamp(20px, 4vw, 28px);
-      box-shadow: 0 0 48px rgba(118, 255, 3, 0.12);
-      backdrop-filter: blur(6px);
+      border-radius: var(--radius);
+      padding: clamp(20px, 5vw, 32px);
+      box-shadow: 0 24px 60px rgba(8, 24, 4, 0.55);
+      backdrop-filter: blur(9px);
+    }
+
+    .panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 1px solid rgba(143, 255, 47, 0.16);
+      border-radius: inherit;
     }
 
     .screen {
       display: flex;
       justify-content: center;
       align-items: center;
+      padding: clamp(8px, 2vw, 16px);
     }
 
     #game {
+      display: block;
       width: 100%;
-      max-width: min(100%, 980px);
+      max-width: 980px;
       aspect-ratio: 16 / 10;
-      border-radius: 18px;
-      border: 3px solid var(--accent);
-      box-shadow: 0 0 36px rgba(118, 255, 3, 0.35);
-      background: #020202;
+      border-radius: calc(var(--radius) - 6px);
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 36px var(--accent-glow);
+      background: #020402;
+      object-fit: cover;
       image-rendering: pixelated;
     }
 
     .controls-panel {
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: clamp(20px, 4.5vw, 32px);
     }
 
     .controls-panel h2 {
       margin: 0;
-      font-size: clamp(1.2rem, 3.2vw, 1.6rem);
+      font-size: clamp(1.3rem, 3.5vw, 1.7rem);
       text-transform: uppercase;
       letter-spacing: 0.18em;
       color: var(--accent);
@@ -108,58 +139,68 @@
 
     .controls-grid {
       display: grid;
-      gap: 16px;
+      gap: clamp(12px, 3.2vw, 18px);
+    }
+
+    .controls-grid.movement {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      justify-items: stretch;
+      grid-template-areas:
+        ". forward ."
+        "left back right";
     }
 
-    .controls-grid .spacer {
-      pointer-events: none;
-      visibility: hidden;
+    .controls-grid.movement .control-btn--forward {
+      grid-area: forward;
     }
 
-    .controls-grid .wide {
-      grid-column: span 3;
+    .controls-grid.movement .control-btn--left {
+      grid-area: left;
     }
 
-    @media (min-width: 900px) {
-      .layout {
-        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-        align-items: start;
-      }
+    .controls-grid.movement .control-btn--back {
+      grid-area: back;
     }
 
-    @media (min-width: 640px) {
-      .controls-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-      .controls-grid .wide {
-        grid-column: span 4;
-      }
+    .controls-grid.movement .control-btn--right {
+      grid-area: right;
+    }
+
+    .controls-grid.actions {
+      grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    }
+
+    .controls-grid.actions .wide {
+      grid-column: 1 / -1;
     }
 
     .control-btn {
       position: relative;
-      padding: clamp(16px, 3vw, 22px);
-      border-radius: 16px;
-      border: 2px solid var(--accent);
-      background: rgba(118, 255, 3, 0.08);
+      min-height: clamp(72px, 24vw, 108px);
+      padding: clamp(18px, 4.5vw, 24px);
+      border-radius: 18px;
+      border: 1px solid var(--accent);
+      background: rgba(143, 255, 47, 0.08);
       color: var(--text);
       font-family: var(--font);
-      font-size: clamp(1rem, 3.2vw, 1.25rem);
+      font-size: clamp(1rem, 3.4vw, 1.25rem);
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      text-align: center;
       cursor: pointer;
-      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(4px, 1.6vw, 8px);
+      transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition);
       touch-action: manipulation;
       user-select: none;
     }
 
     .control-btn .hint {
       display: block;
-      margin-top: 6px;
-      font-size: clamp(0.7rem, 2.1vw, 0.85rem);
+      font-size: clamp(0.72rem, 2.4vw, 0.88rem);
       font-weight: 500;
       text-transform: none;
       letter-spacing: 0.04em;
@@ -169,40 +210,80 @@
     .control-btn:hover,
     .control-btn:focus-visible {
       outline: none;
-      transform: translateY(-2px);
-      box-shadow: 0 0 18px var(--accent-soft);
-      background: rgba(118, 255, 3, 0.18);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 28px rgba(143, 255, 47, 0.18);
+      background: rgba(143, 255, 47, 0.18);
+      border-color: var(--accent-strong);
+    }
+
+    .control-btn:active {
+      transform: translateY(-1px) scale(0.995);
     }
 
     .control-btn.active {
-      transform: translateY(-2px);
-      box-shadow: 0 0 22px var(--accent-strong);
-      background: rgba(118, 255, 3, 0.28);
+      transform: translateY(-3px);
+      box-shadow: 0 0 28px var(--accent-glow);
+      background: rgba(143, 255, 47, 0.28);
+      border-color: var(--accent-strong);
     }
 
     #status {
       min-height: 1.4rem;
-      font-size: 0.9rem;
-      letter-spacing: 0.05em;
+      font-size: clamp(0.82rem, 2.2vw, 0.95rem);
+      letter-spacing: 0.06em;
       color: var(--muted);
       transition: color 180ms ease;
     }
 
     #status[data-state="error"] {
-      color: #ff6262;
+      color: #ff6f70;
+    }
+
+    .controls-note {
+      margin: 0;
+      font-size: clamp(0.82rem, 2.2vw, 0.94rem);
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: none;
+      line-height: 1.5;
     }
 
     footer {
-      width: min(900px, 100%);
-      padding: 0 5vw 48px;
       text-align: center;
       color: var(--muted);
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
+      font-size: clamp(0.78rem, 2.1vw, 0.9rem);
+      letter-spacing: 0.05em;
+      line-height: 1.6;
     }
 
     a {
       color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus-visible {
+      text-decoration: underline;
+    }
+
+    @media (min-width: 960px) {
+      .layout {
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 599px) {
+      body {
+        gap: clamp(28px, 10vw, 48px);
+      }
+
+      .control-btn {
+        min-height: clamp(68px, 28vw, 96px);
+      }
+
+      .controls-grid.actions {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
     }
   </style>
 </head>
@@ -223,29 +304,26 @@
 
     <section class="controls-panel panel" aria-label="Input controls">
       <h2>Controls</h2>
-      <div class="controls-grid" aria-label="Movement keys">
-        <span class="spacer"></span>
-        <button class="control-btn" data-key="key:w">
+      <div class="controls-grid movement" aria-label="Movement keys">
+        <button class="control-btn control-btn--forward" data-key="key:w">
           W
           <span class="hint">forward</span>
         </button>
-        <span class="spacer"></span>
-
-        <button class="control-btn" data-key="key:a">
+        <button class="control-btn control-btn--left" data-key="key:a">
           A
           <span class="hint">strafe left</span>
         </button>
-        <button class="control-btn" data-key="key:s">
+        <button class="control-btn control-btn--back" data-key="key:s">
           S
           <span class="hint">backpedal</span>
         </button>
-        <button class="control-btn" data-key="key:d">
+        <button class="control-btn control-btn--right" data-key="key:d">
           D
           <span class="hint">strafe right</span>
         </button>
       </div>
 
-      <div class="controls-grid" aria-label="Action keys">
+      <div class="controls-grid actions" aria-label="Action keys">
         <button class="control-btn wide" data-key="key:space">
           Space
           <span class="hint">use / open</span>
@@ -266,7 +344,7 @@
 
       <div id="status" role="status" aria-live="polite"></div>
 
-      <p class="tagline" style="text-transform:none; letter-spacing:0.06em;">
+      <p class="controls-note">
         Keyboard shortcuts also work: WASD or arrow keys to move, Space to use, Ctrl to fire, Esc to pause.
       </p>
     </section>
