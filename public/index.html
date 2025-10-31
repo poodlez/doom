@@ -3,148 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>doom.c — RIP AND TEAR</title>
+  <title>doom.c</title>
   <style>
-    :root {
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: #000;
       color-scheme: dark;
-      --bg: #050505;
-      --bg-glow: radial-gradient(circle at center, rgba(120, 255, 40, 0.12), transparent 65%);
-      --text: #f5ffe5;
-      --muted: rgba(240, 255, 220, 0.6);
-      --accent: rgba(135, 255, 55, 0.75);
-      --font: "IBM Plex Mono", "Courier New", monospace;
-    }
-
-    *, *::before, *::after {
-      box-sizing: border-box;
     }
 
     body {
-      margin: 0;
-      min-height: 100svh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(16px, 4vw, 32px);
-      padding: clamp(12px, 4vw, 24px);
-      background: var(--bg);
-      background-image: var(--bg-glow);
-      background-position: center;
-      background-repeat: no-repeat;
-      font-family: var(--font);
-      color: var(--text);
-    }
-
-    main {
-      flex: 1 0 auto;
-      width: min(98vw, 1440px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-family: "IBM Plex Mono", "Courier New", monospace;
+      overflow: hidden;
     }
 
     #game {
-      width: 100%;
-      max-height: calc(100vh - 140px);
-      aspect-ratio: 16 / 10;
-      border-radius: clamp(10px, 1.4vw, 20px);
-      border: 2px solid rgba(135, 255, 55, 0.35);
-      box-shadow: 0 0 clamp(30px, 7vw, 80px) rgba(135, 255, 55, 0.32);
-      background: #030303;
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      border: none;
+      outline: none;
+      background: #000;
+      object-fit: contain;
       image-rendering: pixelated;
-      object-fit: cover;
-    }
-
-    #status {
-      min-height: 1.4rem;
-      font-size: clamp(0.78rem, 2vw, 0.95rem);
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    footer {
-      flex: 0 0 auto;
-      width: min(96vw, 960px);
-      padding: clamp(10px, 2.8vw, 16px);
-      text-align: center;
-      font-size: clamp(0.72rem, 1.8vw, 0.9rem);
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      background: rgba(12, 24, 10, 0.6);
-      border: 1px solid rgba(135, 255, 55, 0.18);
-      border-radius: clamp(12px, 2vw, 18px);
-      backdrop-filter: blur(10px);
-    }
-
-    footer strong {
-      color: var(--text);
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      margin-right: clamp(10px, 3vw, 18px);
-    }
-
-    footer span {
-      display: inline-block;
-      margin: 0 clamp(6px, 3vw, 12px);
-    }
-
-    @media (max-width: 640px) {
-      #game {
-        max-height: calc(100vh - 200px);
-      }
-
-      footer {
-        font-size: clamp(0.68rem, 3.8vw, 0.82rem);
-      }
     }
   </style>
 </head>
 <body>
-  <main aria-label="Live Doom stream">
-    <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Live Doom gameplay stream" tabindex="0">
-  </main>
-
-  <div id="status" role="status" aria-live="polite"></div>
-
-  <footer>
-    <strong>Controls</strong>
-    <span>WASD or arrow keys: move</span>
-    <span>Space: use / open</span>
-    <span>Ctrl: fire</span>
-    <span>Enter: confirm</span>
-    <span>Esc: menu</span>
-  </footer>
+  <img id="game" src="/doom.mjpeg?session=0" width="640" height="400" alt="Live Doom gameplay stream" tabindex="0">
 
   <script>
     const sessionId = 0;
     const endpoint = (path) => `${path}?session=${sessionId}`;
-    const statusEl = document.getElementById('status');
-    let statusTimer = null;
-
-    function reportError(message) {
-      if (!statusEl) {
-        return;
-      }
-      statusEl.textContent = message;
-      statusEl.dataset.state = "error";
-      clearTimeout(statusTimer);
-      statusTimer = setTimeout(() => {
-        statusEl.textContent = "";
-        statusEl.dataset.state = "";
-      }, 2500);
-    }
-
-    function clearError() {
-      if (!statusEl) {
-        return;
-      }
-      if (statusEl.dataset.state === "error") {
-        statusEl.textContent = "";
-        statusEl.dataset.state = "";
-      }
-    }
 
     function sendInput(payload) {
       if (!payload) {
@@ -160,10 +53,8 @@
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
-        clearError();
       }).catch((err) => {
         console.error('input failed', err);
-        reportError('Input failed — make sure the stream is focused.');
       });
     }
 
@@ -226,6 +117,10 @@
 
     window.addEventListener('load', () => {
       gameEl?.focus();
+    });
+
+    ['pointerdown', 'click'].forEach((evt) => {
+      gameEl?.addEventListener(evt, () => gameEl.focus());
     });
 
     function sendKeyState(key, state) {
